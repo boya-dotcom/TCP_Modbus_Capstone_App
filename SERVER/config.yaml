@@ -1,0 +1,5 @@
+update_rate: 1.0
+temp_range: [15, 30]
+humidity_range: [30, 80]
+deterministic: false
+seed: 42
