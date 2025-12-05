@@ -1,0 +1,10 @@
+db_path: "readings.db"
+sensors:
+  - id: 1
+    host: "localhost"
+    port: 5020
+    poll_rate: 5.0
+  - id: 2
+    host: "localhost"
+    port: 5021
+    poll_rate: 10.0
