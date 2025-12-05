@@ -1,0 +1,6 @@
+pymodbus
+flask
+sqlalchemy
+pyyaml
+pytest
+requests
