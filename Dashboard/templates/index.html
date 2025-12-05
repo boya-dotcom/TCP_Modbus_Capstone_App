@@ -1,0 +1,703 @@
+<!-- dashboard/templates/index.html -->
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i>Sensor Network Dashboard</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Sensors</h5>
+                                <h2 id="sensor-count">-</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Readings</h5>
+                                <h2 id="total-readings">-</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Alarms</h5>
+                                <h2 id="alarms-count">-</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Last Update</h5>
+                                <h2 id="last-update">-</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="fas fa-chart-line me-2"></i>Live Sensor Readings</h4>
+            </div>
+            <div class="card-body">
+                <div class="row" id="live-readings">
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading sensor data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-history me-2"></i>Historical Data</h4>
+                    <div>
+                        <select id="sensor-select" class="form-select">
+                            {% for sensor_id in sensors %}
+                            <option value="{{ sensor_id }}">Sensor {{ sensor_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <select id="time-range" class="form-select">
+                            <option value="1">Last Hour</option>
+                            <option value="6">Last 6 Hours</option>
+                            <option value="24">Last 24 Hours</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <canvas id="temp-chart"></canvas>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <canvas id="humidity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Alarm History</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="alarm-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Sensor ID</th>
+                                <th>Alarm Type</th>
+                                <th>Temperature</th>
+                                <th>Humidity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Alarm data will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Dashboard initializing...");
+    
+    // Initialize charts with better configuration for dynamic updates
+    const tempCtx = document.getElementById('temp-chart').getContext('2d');
+    const humidityCtx = document.getElementById('humidity-chart').getContext('2d');
+    
+    // Destroy any existing charts (to prevent duplicates on page refresh)
+    if (window.tempChart) window.tempChart.destroy();
+    if (window.humidityChart) window.humidityChart.destroy();
+    
+    window.tempChart = new Chart(tempCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Temperature (°C)',
+                data: [],
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                tension: 0.1,
+                fill: true,
+                pointRadius: 3,
+                pointBackgroundColor: 'rgb(255, 99, 132)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            animation: {
+                duration: 300 // Faster animation for updates
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Temperature History',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '°C';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+    
+    window.humidityChart = new Chart(humidityCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Humidity (%)',
+                data: [],
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                tension: 0.1,
+                fill: true,
+                pointRadius: 3,
+                pointBackgroundColor: 'rgb(54, 162, 235)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            animation: {
+                duration: 300 // Faster animation for updates
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Humidity History',
+                    font: {
+                        size: 16,
+                        weight: 'bold'
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+    
+    console.log("Charts initialized");
+    
+    // Function to update live readings
+    function updateLiveReadings() {
+        const timestamp = new Date().getTime();
+        fetch(`/api/latest?t=${timestamp}`, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                //console.log("New data received:", data);
+                const container = document.getElementById('live-readings');
+                container.innerHTML = '';
+                
+                if (data.readings && data.readings.length > 0) {
+                    // Count total alarms
+                    let totalAlarms = 0;
+                    data.readings.forEach(reading => {
+                        if (reading.alarms && reading.alarms.length > 0) {
+                            totalAlarms += reading.alarms.length;
+                        }
+                    });
+                    
+                    // Update alarms count
+                    document.getElementById('alarms-count').textContent = totalAlarms;
+                    
+                    // Update sensor count
+                    document.getElementById('sensor-count').textContent = data.readings.length;
+                    
+                    data.readings.forEach(reading => {
+                        const hasAlarms = reading.alarms && reading.alarms.length > 0;
+                        const alarmClass = hasAlarms ? 'border-danger' : '';
+                        const alarmBadge = hasAlarms ? 
+                            `<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                ${reading.alarms.length}
+                            </span>` : '';
+                        
+                        const html = `
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card ${alarmClass} position-relative">
+                                    ${alarmBadge}
+                                    <div class="card-header">
+                                        <h5>Sensor ${reading.sensor_id}</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-6 text-center">
+                                                <h2>${reading.temperature.toFixed(1)}°C</h2>
+                                                <p class="text-muted">Temperature</p>
+                                            </div>
+                                            <div class="col-6 text-center">
+                                                <h2>${reading.humidity.toFixed(1)}%</h2>
+                                                <p class="text-muted">Humidity</p>
+                                            </div>
+                                        </div>
+                                        ${hasAlarms ? `
+                                        <div class="alert alert-danger mt-2 mb-0">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            ${reading.alarms.join(', ')}
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                    <div class="card-footer text-muted text-center">
+                                        Last updated: <span class="reading-timestamp" data-timestamp="${reading.timestamp}">${formatTimestamp(reading.timestamp)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        container.innerHTML += html;
+                    });
+                    
+                    // Update all timestamps to be relative ("X ago")
+                    updateTimestamps();
+                    
+                    // Update last update time - force to "Just now"
+                    document.getElementById('last-update').textContent = 'Just now';
+                    
+                    // Trigger a historical data update when live data is received
+                    // This ensures charts stay in sync with latest readings
+                    updateHistoricalData();
+                    
+                } else {
+                    container.innerHTML = `
+                        <div class="col-12 text-center py-5">
+                            <i class="fas fa-info-circle fa-3x mb-3"></i>
+                            <p>No sensor readings available. Make sure the Modbus server and client are running.</p>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching live readings:', error);
+                document.getElementById('live-readings').innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-exclamation-circle fa-3x mb-3 text-danger"></i>
+                        <p>Error fetching sensor data. Check console for details.</p>
+                    </div>
+                `;
+            });
+    }
+    
+    // Function to update all timestamps to be relative
+    function updateTimestamps() {
+        document.querySelectorAll('.reading-timestamp').forEach(el => {
+            const timestamp = el.getAttribute('data-timestamp');
+            if (timestamp && !isNaN(new Date(timestamp).getTime())) {
+                el.textContent = formatTimeSince(timestamp);
+            }
+        });
+    }
+    
+    // Function to update historical charts
+    function updateHistoricalData() {
+        const sensorId = document.getElementById('sensor-select').value;
+        const hours = document.getElementById('time-range').value;
+        const timestamp = new Date().getTime();
+        
+        console.log(`Fetching historical data for sensor ${sensorId}, last ${hours} hours...`);
+        
+        fetch(`/api/history/${sensorId}?hours=${hours}&t=${timestamp}`, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Historical data received: ${data.readings ? data.readings.length : 0} records`);
+                
+                if (data.readings && data.readings.length > 0) {
+                    // Sort readings by timestamp to ensure correct order
+                    data.readings.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    
+                    // Extract timestamps and format them
+                    const timestamps = data.readings.map(r => formatTime(r.timestamp));
+                    
+                    // Extract temperature and humidity values
+                    const temperatures = data.readings.map(r => r.temperature);
+                    const humidities = data.readings.map(r => r.humidity);
+                    
+                    console.log(`Updating charts with ${timestamps.length} data points`);
+                    
+                    // Clear existing data
+                    window.tempChart.data.labels = [];
+                    window.tempChart.data.datasets[0].data = [];
+                    window.humidityChart.data.labels = [];
+                    window.humidityChart.data.datasets[0].data = [];
+                    
+                    // Update temperature chart with new data
+                    window.tempChart.data.labels = timestamps;
+                    window.tempChart.data.datasets[0].data = temperatures;
+                    window.tempChart.options.plugins.title.text = `Temperature History - Sensor ${sensorId} (Last ${hours}h)`;
+                    
+                    // Update humidity chart with new data
+                    window.humidityChart.data.labels = timestamps;
+                    window.humidityChart.data.datasets[0].data = humidities;
+                    window.humidityChart.options.plugins.title.text = `Humidity History - Sensor ${sensorId} (Last ${hours}h)`;
+                    
+                    // Force immediate updates
+                    window.tempChart.update();
+                    window.humidityChart.update();
+                    
+                    console.log("Charts updated successfully");
+                    
+                    // Update total readings count if needed
+                    document.getElementById('total-readings').textContent = data.total_readings || data.readings.length;
+                } else {
+                    console.warn("No historical data available");
+                    
+                    // Clear the charts when no data is available
+                    window.tempChart.data.labels = [];
+                    window.tempChart.data.datasets[0].data = [];
+                    window.tempChart.options.plugins.title.text = `No Temperature Data - Sensor ${sensorId}`;
+                    window.tempChart.update();
+                    
+                    window.humidityChart.data.labels = [];
+                    window.humidityChart.data.datasets[0].data = [];
+                    window.humidityChart.options.plugins.title.text = `No Humidity Data - Sensor ${sensorId}`;
+                    window.humidityChart.update();
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching historical data:', error);
+                
+                // Display error in charts
+                window.tempChart.data.labels = [];
+                window.tempChart.data.datasets[0].data = [];
+                window.tempChart.options.plugins.title.text = "Error Loading Temperature Data";
+                window.tempChart.update();
+                
+                window.humidityChart.data.labels = [];
+                window.humidityChart.data.datasets[0].data = [];
+                window.humidityChart.options.plugins.title.text = "Error Loading Humidity Data";
+                window.humidityChart.update();
+            });
+    }
+    
+    // Function to update alarm table
+    function updateAlarmTable() {
+        const timestamp = new Date().getTime();
+        fetch(`/api/latest?t=${timestamp}`, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const tableBody = document.getElementById('alarm-table').querySelector('tbody');
+                tableBody.innerHTML = '';
+                
+                // Filter readings with alarms
+                const alarmsData = data.readings.filter(r => r.alarms && r.alarms.length > 0);
+                
+                if (alarmsData.length > 0) {
+                    alarmsData.forEach(reading => {
+                        reading.alarms.forEach(alarm => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${formatTimestamp(reading.timestamp)}</td>
+                                <td>${reading.sensor_id}</td>
+                                <td><span class="badge bg-danger">${alarm}</span></td>
+                                <td>${reading.temperature.toFixed(1)}°C</td>
+                                <td>${reading.humidity.toFixed(1)}%</td>
+                            `;
+                            tableBody.appendChild(row);
+                        });
+                    });
+                } else {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td colspan="5" class="text-center py-3">
+                            <i class="fas fa-check-circle me-2 text-success"></i>
+                            No active alarms
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching alarm data:', error);
+                
+                const tableBody = document.getElementById('alarm-table').querySelector('tbody');
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-3 text-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            Error loading alarm data
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+    
+    // Function to update dashboard statistics
+    function updateStats() {
+        const timestamp = new Date().getTime();
+        fetch(`/api/stats?t=${timestamp}`, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('sensor-count').textContent = data.sensor_count;
+                document.getElementById('total-readings').textContent = data.total_readings;
+                document.getElementById('alarms-count').textContent = data.alarms_count;
+            })
+            .catch(error => {
+                console.error('Error fetching statistics:', error);
+            });
+    }
+    
+    // Utility function to format timestamp
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleString();
+    }
+    
+    // Utility function to format time (HH:MM:SS)
+    function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }
+    
+    // Utility function to format time since
+    function formatTimeSince(timestamp) {
+        const now = new Date();
+        const date = new Date(timestamp);
+        const seconds = Math.floor((now - date) / 1000);
+        
+        if (seconds < 10) return 'Just now';
+        if (seconds < 60) return `${seconds}s ago`;
+        
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ago`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    }
+    
+    // Manually force the last-update to show "Just now"
+    function forceUpdateLastUpdate() {
+        document.getElementById('last-update').textContent = 'Just now';
+    }
+    
+    // Event listeners with additional logging
+    document.getElementById('sensor-select').addEventListener('change', function() {
+        console.log("Sensor selection changed to:", this.value);
+        updateHistoricalData();
+    });
+    
+    document.getElementById('time-range').addEventListener('change', function() {
+        console.log("Time range changed to:", this.value, "hours");
+        updateHistoricalData();
+    });
+    
+    // Check if the API endpoints are working correctly
+    function checkApiEndpoints() {
+        fetch('/api/debug', {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log("API Debug Information:", data);
+                if (data.total_rows === 0) {
+                    console.warn("WARNING: No data found in database!");
+                }
+            })
+            .catch(error => {
+                console.error("API Debug Error:", error);
+            });
+    }
+    
+    // Initial check
+    console.log("Dashboard initialized, checking API endpoints...");
+    checkApiEndpoints();
+    
+    // Initial updates
+    console.log("Loading initial data...");
+    updateLiveReadings();
+    updateHistoricalData();
+    updateAlarmTable();
+    updateStats();
+    
+    // Set up periodic updates
+    console.log("Setting up periodic updates...");
+    const liveUpdater = setInterval(updateLiveReadings, 5000);  // Update live readings every 5 seconds
+    const chartUpdater = setInterval(updateHistoricalData, 10000);  // Update charts every 10 seconds
+    const alarmUpdater = setInterval(updateAlarmTable, 5000);  // Update alarm table every 5 seconds
+    const statsUpdater = setInterval(updateStats, 30000);  // Update statistics every 30 seconds
+    const timeUpdater = setInterval(forceUpdateLastUpdate, 5000); // Force update the "Last Update" text
+    
+    // Handle page visibility changes to optimize performance
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            // Slow down updates when page is not visible
+            clearInterval(liveUpdater);
+            clearInterval(chartUpdater);
+            clearInterval(alarmUpdater);
+            clearInterval(statsUpdater);
+            clearInterval(timeUpdater);
+            console.log("Page hidden, pausing updates");
+        } else {
+            // Resume normal updates when page is visible again
+            console.log("Page visible, resuming updates");
+            // Immediately update everything
+            updateLiveReadings();
+            updateHistoricalData();
+            updateAlarmTable();
+            updateStats();
+            // Restart intervals
+            liveUpdater = setInterval(updateLiveReadings, 5000);
+            chartUpdater = setInterval(updateHistoricalData, 10000);
+            alarmUpdater = setInterval(updateAlarmTable, 5000);
+            statsUpdater = setInterval(updateStats, 30000);
+            timeUpdater = setInterval(forceUpdateLastUpdate, 5000);
+        }
+    });
+    
+    console.log("Dashboard initialization complete");
+});
+</script>
+{% endblock %}
