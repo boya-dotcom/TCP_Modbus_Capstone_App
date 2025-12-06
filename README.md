@@ -39,8 +39,8 @@ basic
 ## Installation
 
 1. Clone this repository:
-git clone https://github.com/yourusername/modbus-capstone.git
-cd modbus-capstone
+git clone https://github.com/boya-dotcom/TCP_Modbus_Capstone_App.git
+cd TCP_Modbus_Capstone_App
 
 
 
@@ -95,7 +95,7 @@ python dashboard/app.py
 
 
 
-4. Open the dashboard in your web browser:
+4. Open the dashboard in  web browser:
 http://localhost:5000
 
 yaml
@@ -149,4 +149,5 @@ Deploy on Raspberry Pi for physical demonstration
 Add user authentication for the dashboard
 Implement email notifications for alarms
 Dockerize all components for easy deployment
+
 Add more sensor types and Modbus function codescd
